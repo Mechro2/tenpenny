@@ -1,37 +1,67 @@
+'use client';
+
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { createClient } from '@supabase/supabase-js';
 
-export const dynamic = 'force-dynamic';
+export default function SettingsPage() {
+  const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(true);
+  const [isSubscribed, setIsSubscribed] = useState(false);
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-);
-
-export default async function SettingsPage({
-  searchParams,
-}: {
-  searchParams: { success?: string };
-}) {
-  const isSuccessQuery = searchParams?.success === 'true';
-
-  let dbIsPro = false;
-  try {
-    const { data } = await supabase
-      .from('contractors')
-      .select('is_pro')
-      .eq('id', 1)
-      .maybeSingle();
-    
-    if (data?.is_pro) {
-      dbIsPro = true;
+  useEffect(() => {
+    // 1. Instantly check if ?success=true is in the browser URL
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('success') === 'true') {
+      setIsSubscribed(true);
+      setChecking(false);
+      return;
     }
-  } catch (err) {
-    console.error('Supabase fetch error:', err);
+
+    // 2. Otherwise check Supabase DB via API route
+    async function checkDb() {
+      try {
+        const res = await fetch('/api/check-subscription?contractorId=1');
+        const data = await res.json();
+        if (data.is_pro) {
+          setIsSubscribed(true);
+        }
+      } catch (err) {
+        console.error('Failed to check subscription:', err);
+      } finally {
+        setChecking(false);
+      }
+    }
+    checkDb();
+  }, []);
+
+  const handleUpgrade = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/stripe/create-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contractorId: 1 }),
+      });
+
+      const data = await response.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert(data.error || 'Failed to open checkout');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Something went wrong.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (checking) {
+    return <div className="p-12 text-center text-slate-400">Loading settings...</div>;
   }
 
-  const isSubscribed = isSuccessQuery || dbIsPro;
-
+  // Thank You / Success View
   if (isSubscribed) {
     return (
       <div className="p-8 max-w-4xl mx-auto space-y-8 animate-fadeIn">
@@ -89,6 +119,7 @@ export default async function SettingsPage({
     );
   }
 
+  // Standard Upgrade View
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-8">
       <div className="flex items-center justify-between">
@@ -124,15 +155,13 @@ export default async function SettingsPage({
             Active Voice Pipeline Ready
           </div>
 
-          <form action="/api/stripe/create-checkout" method="POST">
-            <input type="hidden" name="contractorId" value="1" />
-            <button
-              type="submit"
-              className="bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-medium px-6 py-2.5 rounded-xl text-sm transition-all shadow-lg shadow-blue-600/25 flex items-center gap-2 cursor-pointer"
-            >
-              Launch 14-Day Free Trial
-            </button>
-          </form>
+          <button
+            onClick={handleUpgrade}
+            disabled={loading}
+            className="bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-medium px-6 py-2.5 rounded-xl text-sm transition-all shadow-lg shadow-blue-600/25 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+          >
+            {loading ? 'Processing...' : 'Launch 14-Day Free Trial'}
+          </button>
         </div>
       </div>
     </div>
