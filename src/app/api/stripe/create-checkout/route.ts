@@ -30,7 +30,7 @@ export async function POST(req: Request) {
         trial_period_days: 14,
         metadata: { contractorId: contractorId || 'default_contractor' },
       },
-      success_url: `${origin}/thank-you`,
+      success_url: `${origin}https://tenpenny-backend.vercel.app/success`,
       cancel_url: `${origin}/settings?canceled=true`,
     });
 
