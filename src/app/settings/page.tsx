@@ -5,19 +5,17 @@ import Link from 'next/link';
 
 export default function SettingsPage() {
   const [loading, setLoading] = useState(false);
-  const [checking, setChecking] = useState(true);
   const [isSubscribed, setIsSubscribed] = useState(false);
 
   useEffect(() => {
-    // 1. Instantly check if ?success=true is in the browser URL
+    // Force immediate success if ?success=true is in the URL
     const params = new URLSearchParams(window.location.search);
     if (params.get('success') === 'true') {
       setIsSubscribed(true);
-      setChecking(false);
       return;
     }
 
-    // 2. Otherwise check Supabase DB via API route
+    // Otherwise check Supabase DB via API route
     async function checkDb() {
       try {
         const res = await fetch('/api/check-subscription?contractorId=1');
@@ -27,8 +25,6 @@ export default function SettingsPage() {
         }
       } catch (err) {
         console.error('Failed to check subscription:', err);
-      } finally {
-        setChecking(false);
       }
     }
     checkDb();
@@ -56,10 +52,6 @@ export default function SettingsPage() {
       setLoading(false);
     }
   };
-
-  if (checking) {
-    return <div className="p-12 text-center text-slate-400">Loading settings...</div>;
-  }
 
   // Thank You / Success View
   if (isSubscribed) {
