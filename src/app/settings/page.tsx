@@ -11,12 +11,10 @@ const supabase = createClient(
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ success?: string }>;
+  searchParams: { success?: string };
 }) {
-  const params = await searchParams;
-  const isSuccessQuery = params.success === 'true';
+  const isSuccessQuery = searchParams?.success === 'true';
 
-  // Check Supabase database for contractor ID 1
   let dbIsPro = false;
   try {
     const { data } = await supabase
@@ -34,7 +32,6 @@ export default async function SettingsPage({
 
   const isSubscribed = isSuccessQuery || dbIsPro;
 
-  // Dedicated Thank You / Success View
   if (isSubscribed) {
     return (
       <div className="p-8 max-w-4xl mx-auto space-y-8 animate-fadeIn">
@@ -92,7 +89,6 @@ export default async function SettingsPage({
     );
   }
 
-  // Standard Upgrade View (Shown when not subscribed)
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-8">
       <div className="flex items-center justify-between">
