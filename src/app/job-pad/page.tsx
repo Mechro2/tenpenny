@@ -91,7 +91,7 @@ export default function JobPadPage() {
     setSaving(true);
     setSavedSuccess(false);
 
-    const { error } = await supabase.from('job_pads'].insert([
+    const { error } = await supabase.from('job_pads').insert([
       {
         contractor_id: 1,
         client_name: clientName || 'General Field Note',
