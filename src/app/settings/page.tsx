@@ -14,6 +14,7 @@ export default function SettingsPage() {
   const [success, setSuccess] = useState(false);
 
   const [settings, setSettings] = useState({
+    contractor_id: 1,
     business_name: '',
     owner_name: '',
     phone_number: '',
@@ -34,7 +35,7 @@ export default function SettingsPage() {
       .from('contractor_settings')
       .select('*')
       .eq('contractor_id', 1)
-      .single();
+      .maybeSingle();
 
     if (!error && data) {
       setSettings(data);
@@ -47,13 +48,14 @@ export default function SettingsPage() {
     setSaving(true);
     setSuccess(false);
 
+    // Upsert ensures it creates the row if it's missing or updates it if it exists
     const { error } = await supabase
       .from('contractor_settings')
-      .update({
+      .upsert({
         ...settings,
+        contractor_id: 1,
         updated_at: new Date().toISOString(),
-      })
-      .eq('contractor_id', 1);
+      }, { onConflict: 'contractor_id' });
 
     setSaving(false);
     if (!error) {
@@ -84,7 +86,7 @@ export default function SettingsPage() {
               <label className="block text-xs font-medium text-slate-400 mb-1">Business Name</label>
               <input
                 type="text"
-                value={settings.business_name}
+                value={settings.business_name || ''}
                 onChange={(e) => setSettings({ ...settings, business_name: e.target.value })}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-blue-500"
               />
@@ -94,7 +96,7 @@ export default function SettingsPage() {
               <label className="block text-xs font-medium text-slate-400 mb-1">Owner / Primary Contact Name</label>
               <input
                 type="text"
-                value={settings.owner_name}
+                value={settings.owner_name || ''}
                 onChange={(e) => setSettings({ ...settings, owner_name: e.target.value })}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-blue-500"
               />
@@ -115,7 +117,7 @@ export default function SettingsPage() {
               <label className="block text-xs font-medium text-slate-400 mb-1">Standard Hourly Rate ($)</label>
               <input
                 type="number"
-                value={settings.hourly_rate}
+                value={settings.hourly_rate || 0}
                 onChange={(e) => setSettings({ ...settings, hourly_rate: parseFloat(e.target.value) || 0 })}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-blue-500"
               />
@@ -127,7 +129,7 @@ export default function SettingsPage() {
               <label className="block text-xs font-medium text-slate-400 mb-1">Service Radius & Locations</label>
               <input
                 type="text"
-                value={settings.service_radius}
+                value={settings.service_radius || ''}
                 onChange={(e) => setSettings({ ...settings, service_radius: e.target.value })}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-blue-500"
               />
@@ -137,7 +139,7 @@ export default function SettingsPage() {
               <label className="block text-xs font-medium text-slate-400 mb-1">Services Offered (Comma separated)</label>
               <input
                 type="text"
-                value={settings.services_offered}
+                value={settings.services_offered || ''}
                 onChange={(e) => setSettings({ ...settings, services_offered: e.target.value })}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-blue-500"
               />
@@ -147,7 +149,7 @@ export default function SettingsPage() {
               <label className="block text-xs font-medium text-slate-400 mb-1">Operating Hours</label>
               <input
                 type="text"
-                value={settings.operating_hours}
+                value={settings.operating_hours || ''}
                 onChange={(e) => setSettings({ ...settings, operating_hours: e.target.value })}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-blue-500"
               />
@@ -157,7 +159,7 @@ export default function SettingsPage() {
               <label className="block text-xs font-medium text-slate-400 mb-1">AI Assistant Behavior & Instructions</label>
               <textarea
                 rows={4}
-                value={settings.custom_prompt_instructions}
+                value={settings.custom_prompt_instructions || ''}
                 onChange={(e) => setSettings({ ...settings, custom_prompt_instructions: e.target.value })}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-blue-500 resize-none"
               />
