@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -14,10 +14,59 @@ export default function JobPadPage() {
   const [notes, setNotes] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  
+  // Voice transcription states
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
     fetchNotes();
+
+    // Initialize browser speech recognition if supported
+    if (typeof window !== 'undefined') {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = 'en-US';
+
+        recognition.onresult = (event: any) => {
+          let transcript = '';
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            transcript += event.results[i][0].transcript;
+          }
+          setScratchpadContent((prev) => (prev ? `${prev} ${transcript}` : transcript));
+        };
+
+        recognition.onerror = (event: any) => {
+          console.error('Speech recognition error', event.error);
+          setIsListening(false);
+        };
+
+        recognition.onend = () => {
+          setIsListening(false);
+        };
+
+        recognitionRef.current = recognition;
+      }
+    }
   }, []);
+
+  const toggleListening = () => {
+    if (!recognitionRef.current) {
+      alert('Speech recognition is not supported in this browser. Try Chrome or Edge.');
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    } else {
+      recognitionRef.current.start();
+      setIsListening(true);
+    }
+  };
 
   async function fetchNotes() {
     const { data, error } = await supabase
@@ -34,12 +83,17 @@ export default function JobPadPage() {
     e.preventDefault();
     if (!scratchpadContent.trim()) return;
 
+    if (isListening && recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    }
+
     setSaving(true);
     setSavedSuccess(false);
 
-    const { error } = await supabase.from('job_pads').insert([
+    const { error } = await supabase.from('job_pads'].insert([
       {
-        contractor_id: 1, // Tied to active test contractor
+        contractor_id: 1,
         client_name: clientName || 'General Field Note',
         scratchpad_content: scratchpadContent,
         updated_at: new Date().toISOString(),
@@ -76,7 +130,7 @@ export default function JobPadPage() {
           </div>
 
           <div className="pt-4 space-y-4">
-            <div className="flex items-center justify-between border-b border-amber-200 pb-3">
+            <div className="flex items-center justify-between border-b border-amber-200 pb-3 gap-2">
               <input
                 type="text"
                 placeholder="Client / Project Name..."
@@ -84,19 +138,30 @@ export default function JobPadPage() {
                 onChange={(e) => setClientName(e.target.value)}
                 className="bg-transparent font-bold text-lg placeholder-amber-700/50 text-slate-900 focus:outline-none w-full"
               />
-              <span className="text-xs font-semibold text-amber-800 uppercase tracking-wider bg-amber-200/50 px-2 py-1 rounded">
-                Pad 01
-              </span>
+              
+              {/* Discreet Voice Talk Button */}
+              <button
+                type="button"
+                onClick={toggleListening}
+                title="Dictate note via voice"
+                className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shrink-0 ${
+                  isListening 
+                    ? 'bg-red-500 text-white animate-pulse shadow-md' 
+                    : 'bg-amber-200/70 text-amber-900 hover:bg-amber-200 border border-amber-300/60'
+                }`}
+              >
+                <span>{isListening ? '🎙️ Recording...' : '🎙️ Talk'}</span>
+              </button>
             </div>
 
             {/* Note taking textarea with ruled lines effect */}
             <div className="relative">
               <textarea
                 rows={8}
-                placeholder="Jot down quick details: 2x4 framing needed, custom trim color SW 7005, verify gate clearance..."
+                placeholder="Jot down quick details or click 'Talk' to dictate..."
                 value={scratchpadContent}
                 onChange={(e) => setScratchpadContent(e.target.value)}
-                className="w-full bg-transparent text-slate-900 placeholder-amber-900/40 text-base leading-loose focus:outline-none resize-none bg-gradient-to-b from-transparent via-transparent to-amber-100/30"
+                className="w-full bg-transparent text-slate-900 placeholder-amber-900/40 text-base leading-loose focus:outline-none resize-none"
                 style={{
                   backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0.06) 1px, transparent 1px)',
                   backgroundSize: '100% 2rem',
@@ -107,7 +172,7 @@ export default function JobPadPage() {
 
             <div className="flex items-center justify-between pt-2">
               <span className="text-xs text-amber-900/60 font-medium">
-                {savedSuccess ? '✅ Saved to vault!' : 'Auto-sync ready'}
+                {savedSuccess ? '✅ Saved to vault!' : isListening ? 'Listening for speech...' : 'Auto-sync ready'}
               </span>
               <button
                 type="submit"
@@ -129,7 +194,7 @@ export default function JobPadPage() {
           <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
             {notes.length === 0 ? (
               <div className="p-8 rounded-2xl bg-slate-900/60 border border-slate-800 text-slate-400 text-sm text-center">
-                No notes torn off yet. Type your thoughts on the pad and hit save!
+                No notes torn off yet. Type or dictate your thoughts on the pad and hit save!
               </div>
             ) : (
               notes.map((note) => (
