@@ -15,7 +15,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="bg-slate-950 text-slate-100 antialiased min-h-screen flex flex-col">
         <header className="border-b border-slate-800 bg-slate-900/50 backdrop-blur-md sticky top-0 z-50">
-          <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
             
             {/* Logo/Brand links back home */}
             <Link href="/" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
@@ -29,13 +29,25 @@ export default function RootLayout({
             <nav className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
               <Link 
                 href="/leads" 
-                className="px-4 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-900 transition-all"
+                className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-900 transition-all"
               >
-                Leads Dashboard
+                Leads
+              </Link>
+              <Link 
+                href="/appointments" 
+                className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-900 transition-all"
+              >
+                Appointments
+              </Link>
+              <Link 
+                href="/notes" 
+                className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-900 transition-all"
+              >
+                Job Notes
               </Link>
               <Link 
                 href="/settings" 
-                className="px-4 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-900 transition-all"
+                className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-900 transition-all"
               >
                 Agent Settings
               </Link>
