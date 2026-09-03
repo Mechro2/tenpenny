@@ -28,33 +28,39 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 });
   }
 
-  // Handle successful checkout
+  // Handle successful checkout & trial activation
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session;
     
-    const contractorId = session.subscription_data?.metadata?.contractorId || session.metadata?.contractorId;
+    // Safely extract contractorId with a fallback to 1 for solo testing
+    const contractorId = 
+      session.subscription_data?.metadata?.contractorId || 
+      session.metadata?.contractorId || 
+      1;
+
     const customerId = session.customer as string;
     const subscriptionId = session.subscription as string;
-    const customerEmail = session.customer_details?.email || session.customer_email;
 
-    console.log(`Checkout completed for contractor: ${contractorId}`);
+    console.log(`Checkout completed. Target Contractor ID: ${contractorId}`);
     console.log(`Stripe Customer ID: ${customerId}, Subscription ID: ${subscriptionId}`);
 
-    // Update Supabase with the Pro status
-    // (Make sure 'contractors' matches your actual database table name)
-    const { error } = await supabase
+    // Update Supabase with Pro status
+    const { data, error } = await supabase
       .from('contractors')
       .update({
         is_pro: true,
         stripe_customer_id: customerId,
         stripe_subscription_id: subscriptionId,
       })
-      .eq('id', contractorId); // Fallback to .eq('email', customerEmail) if you pass email instead of ID
+      .eq('id', contractorId)
+      .select();
 
     if (error) {
       console.error('Error updating database from webhook:', error.message);
       return NextResponse.json({ error: 'Database update failed' }, { status: 500 });
     }
+
+    console.log('Successfully updated contractor pro status in Supabase:', data);
   }
 
   return NextResponse.json({ received: true });
