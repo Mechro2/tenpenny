@@ -15,12 +15,25 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing message body' }, { status: 400 });
     }
 
+    // Fetch dynamic business settings from Supabase
+    const { data: settings } = await supabase
+      .from('contractor_settings')
+      .select('*')
+      .eq('contractor_id', 1)
+      .single();
+
+    const businessName = settings?.business_name || 'Tenpenny Contracting';
+    const ownerName = settings?.owner_name || 'Erik';
+    const services = settings?.services_offered || 'General Remodeling, Carpentry, Electrical, Plumbing, Repairs';
+    const serviceRadius = settings?.service_radius || 'Benton County, AR';
+    const instructions = settings?.custom_prompt_instructions || 'Be professional, direct, and concise.';
+
     // 1. Handle Vapi assistant request / initialization
     if (message.type === 'assistant-request' || message.type === 'call-start') {
       return NextResponse.json({
         assistant: {
-          name: "Tenpenny AI - Expert Handyman",
-          firstMessage: "Hey there! Thanks for calling. This is Tenpenny AI, your master technician and general contractor. Whether you're looking at a major renovation, custom carpentry, intricate wiring, plumbing, or property maintenance, consider it handled. What kind of project or repair can I help you get squared away today?",
+          name: `Tenpenny AI - ${businessName}`,
+          firstMessage: `Hey there! Thanks for calling ${businessName}. This is Tenpenny AI, ${ownerName}'s automated assistant. Whether you're looking at a major renovation, custom carpentry, plumbing, or property maintenance, consider it handled. What kind of project or repair can I help you get squared away today?`,
           model: {
             provider: "openai",
             model: "gpt-4o",
@@ -28,11 +41,17 @@ export async function POST(req: Request) {
               {
                 role: "system",
                 content: `[Identity]
-You are Tenpenny AI, an elite master craftsman, licensed general contractor, and ultimate expert trade assistant. You possess deep, hands-on knowledge across every building trade, home repair discipline, mechanical system, and structural renovation method. You present as an experienced, sharp, and friendly master technician with broad, practical expertise. Your tone is warm, professional, and approachable, with a natural, subtle southern charm (e.g., using light phrases like "squared away", "y'all", or "sounds like a plan").
+You are Tenpenny AI, an elite master craftsman, licensed general contractor, and ultimate expert trade assistant for ${businessName}, owned by ${ownerName}. You service clients within ${serviceRadius}. You possess deep, hands-on knowledge across every building trade and structural renovation method. Your tone is warm, professional, and approachable, with a natural, subtle southern charm (e.g., using light phrases like "squared away", "y'all", or "sounds like a plan").
+
+[Core Services]
+${services}
+
+[Owner Directives & Custom Instructions]
+${instructions}
 
 [Style]
 - Speak conversationally, naturally, and warmly in 1–3 short sentences at a time.
-- Always identify yourself as "Tenpenny AI, your master technician and general contractor."
+- Always identify yourself as working for ${businessName}.
 - Sound like an elite tradesman who can talk intelligently about framing, electrical, plumbing, finish work, masonry, and heavy mechanics without sounding overly academic.
 - Never pronounce punctuation or literal variable placeholders out loud.
 - Use natural pauses and friendly fillers to avoid dead air.
@@ -47,6 +66,86 @@ You are Tenpenny AI, an elite master craftsman, licensed general contractor, and
 6. When scheduling is discussed, use \`checkAvailability\` to check dates, and use \`bookAppointment\` to lock in the confirmed slot.
 7. Offer to text them a secure photo upload link using \`send_photo_link\` so they can send pictures of the repair area.
 8. Register the final lead details using \`logJobNotes\` and conclude the call warmly.`
+              }
+            ],
+            tools: [
+              {
+                type: "function",
+                function: {
+                  name: "checkAvailability",
+                  description: "Check existing appointments on a given date for scheduling.",
+                  parameters: {
+                    type: "object",
+                    properties: {
+                      date: { type: "string", description: "The date to check in YYYY-MM-DD format." },
+                      contractor_id: { type: "string", description: "The contractor ID." }
+                    },
+                    required: ["date"]
+                  }
+                }
+              },
+              {
+                type: "function",
+                function: {
+                  name: "bookAppointment",
+                  description: "Book an on-site evaluation appointment for the client.",
+                  parameters: {
+                    type: "object",
+                    properties: {
+                      contractor_id: { type: "string" },
+                      client_name: { type: "string" },
+                      client_phone: { type: "string" },
+                      address: { type: "string" },
+                      start_time: { type: "string", description: "ISO string for appointment start time." },
+                      description: { type: "string" }
+                    },
+                    required: ["client_name", "client_phone", "address", "start_time"]
+                  }
+                }
+              },
+              {
+                type: "function",
+                function: {
+                  name: "geocodeJobSite",
+                  description: "Geocode and validate the job site address via Google Maps.",
+                  parameters: {
+                    type: "object",
+                    properties: {
+                      address: { type: "string", description: "The full street address of the job site." }
+                    },
+                    required: ["address"]
+                  }
+                }
+              },
+              {
+                type: "function",
+                function: {
+                  name: "send_photo_link",
+                  description: "Send a secure SMS photo upload link to the client's phone via Twilio.",
+                  parameters: {
+                    type: "object",
+                    properties: {
+                      client_phone: { type: "string", description: "The client's mobile phone number." }
+                    },
+                    required: ["client_phone"]
+                  }
+                }
+              },
+              {
+                type: "function",
+                function: {
+                  name: "logJobNotes",
+                  description: "Save final job notes and project details to the database.",
+                  parameters: {
+                    type: "object",
+                    properties: {
+                      contractor_id: { type: "string" },
+                      client_phone: { type: "string" },
+                      notes: { type: "string", description: "Summary of the project scope and discussion." }
+                    },
+                    required: ["client_phone", "notes"]
+                  }
+                }
               }
             ]
           }
@@ -138,7 +237,7 @@ You are Tenpenny AI, an elite master craftsman, licensed general contractor, and
           const params = new URLSearchParams();
           params.append('To', client_phone);
           params.append('From', twilioNumber);
-          params.append('Body', `Hey! This is Tenpenny AI. Tap this link to securely upload photos of your project so our team can review them: ${uploadUrl}`);
+          params.append('Body', `Hey! This is ${businessName}. Tap this link to securely upload photos of your project so our team can review them: ${uploadUrl}`);
 
           const twilioRes = await fetch(twilioUrl, {
             method: 'POST',
