@@ -1,161 +1,183 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+);
 
 export default function SettingsPage() {
-  const [loading, setLoading] = useState(false);
-  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  const [settings, setSettings] = useState({
+    business_name: '',
+    owner_name: '',
+    phone_number: '',
+    service_radius: '',
+    services_offered: '',
+    hourly_rate: 85,
+    operating_hours: '',
+    custom_prompt_instructions: '',
+  });
 
   useEffect(() => {
-    // Force immediate success if ?success=true is in the URL
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('success') === 'true') {
-      setIsSubscribed(true);
-      return;
-    }
-
-    // Otherwise check Supabase DB via API route
-    async function checkDb() {
-      try {
-        const res = await fetch('/api/check-subscription?contractorId=1');
-        const data = await res.json();
-        if (data.is_pro) {
-          setIsSubscribed(true);
-        }
-      } catch (err) {
-        console.error('Failed to check subscription:', err);
-      }
-    }
-    checkDb();
+    fetchSettings();
   }, []);
 
-  const handleUpgrade = async () => {
+  async function fetchSettings() {
     setLoading(true);
-    try {
-      const response = await fetch('/api/stripe/create-checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contractorId: 1 }),
-      });
+    const { data, error } = await supabase
+      .from('contractor_settings')
+      .select('*')
+      .eq('contractor_id', 1)
+      .single();
 
-      const data = await response.json();
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        alert(data.error || 'Failed to open checkout');
-      }
-    } catch (err) {
-      console.error(err);
-      alert('Something went wrong.');
-    } finally {
-      setLoading(false);
+    if (!error && data) {
+      setSettings(data);
     }
-  };
-
-  // Thank You / Success View
-  if (isSubscribed) {
-    return (
-      <div className="p-8 max-w-4xl mx-auto space-y-8 animate-fadeIn">
-        <div className="bg-gradient-to-br from-blue-900/40 via-slate-900 to-slate-950 border border-blue-500/30 rounded-3xl p-8 shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
-          
-          <div className="flex items-center justify-between mb-4">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold uppercase tracking-wider">
-              Payment Verified • Trial Active
-            </div>
-            <Link
-              href="/leads"
-              className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all shadow-lg shadow-blue-600/25 flex items-center gap-2"
-            >
-              <span>Go to Leads Dashboard</span>
-              <span>→</span>
-            </Link>
-          </div>
-
-          <h1 className="text-3xl font-bold tracking-tight text-white">Thank You for Subscribing!</h1>
-          <p className="text-slate-300 text-sm mt-2 max-w-xl">
-            Your 14-day free trial for Tenpenny AI Pro Operations is fully active. Your autonomous voice pipelines are armed and ready to capture leads.
-          </p>
-        </div>
-
-        <div className="bg-slate-900/85 backdrop-blur-xl border border-slate-800 rounded-3xl p-8 shadow-xl space-y-6">
-          <div>
-            <h2 className="text-xl font-semibold text-white">Your Unlocked Pro Capabilities</h2>
-            <p className="text-xs text-slate-400 mt-1">Here is what Tenpenny AI is now doing live for your contracting business:</p>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="p-5 rounded-2xl bg-slate-800/40 border border-slate-700/50 space-y-2">
-              <div className="text-blue-400 font-semibold text-sm">⚡ Instant SMS-to-Callback Routing</div>
-              <p className="text-xs text-slate-400">Missed a call or got an after-hours text? Tenpenny immediately engages the lead via voice to qualify project scope within seconds.</p>
-            </div>
-
-            <div className="p-5 rounded-2xl bg-slate-800/40 border border-slate-700/50 space-y-2">
-              <div className="text-blue-400 font-semibold text-sm">🎙️ Vapi Autonomous Voice Dispatch</div>
-              <p className="text-xs text-slate-400">Natural-sounding AI voice agents handle inbound inquiries and outbound follow-ups with professional contractor context.</p>
-            </div>
-
-            <div className="p-5 rounded-2xl bg-slate-800/40 border border-slate-700/50 space-y-2">
-              <div className="text-blue-400 font-semibold text-sm">🛠️ Automated Job-Note Extraction</div>
-              <p className="text-xs text-slate-400">Every conversation automatically parses customer details, addresses, and material requirements straight into your system.</p>
-            </div>
-
-            <div className="p-5 rounded-2xl bg-slate-800/40 border border-slate-700/50 space-y-2">
-              <div className="text-blue-400 font-semibold text-sm">🔒 Secure Real-Time CRM Sync</div>
-              <p className="text-xs text-slate-400">All leads flow directly into your secure dashboard backed by Supabase database validation and Stripe billing security.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    setLoading(false);
   }
 
-  // Standard Upgrade View
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setSuccess(false);
+
+    const { error } = await supabase
+      .from('contractor_settings')
+      .update({
+        ...settings,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('contractor_id', 1);
+
+    setSaving(false);
+    if (!error) {
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+    } else {
+      alert('Error saving settings: ' + error.message);
+    }
+  }
+
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-white">Account Settings</h1>
-          <p className="text-slate-400 text-sm mt-1">Manage your subscription, billing, and autonomous agent parameters.</p>
-        </div>
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight text-white">Business Settings & AI Persona</h1>
+        <p className="text-slate-400 text-sm mt-1">
+          Configure the core variables your AI voice assistant uses to greet customers, quote services, and qualify leads.
+        </p>
       </div>
-      
-      <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-6 shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
-        
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-semibold uppercase tracking-wider mb-3">
-              Pro Tier
+
+      {loading ? (
+        <div className="p-12 rounded-2xl bg-slate-900/60 border border-slate-800 text-slate-400 text-sm text-center">
+          Loading settings...
+        </div>
+      ) : (
+        <form onSubmit={handleSave} className="bg-slate-900/90 rounded-2xl border border-slate-800 p-8 space-y-6 shadow-xl">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1">Business Name</label>
+              <input
+                type="text"
+                value={settings.business_name}
+                onChange={(e) => setSettings({ ...settings, business_name: e.target.value })}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-blue-500"
+              />
             </div>
-            <h2 className="text-xl font-semibold text-white">Tenpenny AI Pro Operations</h2>
-            <p className="text-slate-400 text-sm mt-1 max-w-lg">
-              Unlimited voice lead capture, automated Vapi outbound/inbound dispatch, and CRM synchronization.
-            </p>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1">Owner / Primary Contact Name</label>
+              <input
+                type="text"
+                value={settings.owner_name}
+                onChange={(e) => setSettings({ ...settings, owner_name: e.target.value })}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1">Business Phone Number</label>
+              <input
+                type="text"
+                value={settings.phone_number || ''}
+                placeholder="e.g. (479) 555-0199"
+                onChange={(e) => setSettings({ ...settings, phone_number: e.target.value })}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1">Standard Hourly Rate ($)</label>
+              <input
+                type="number"
+                value={settings.hourly_rate}
+                onChange={(e) => setSettings({ ...settings, hourly_rate: parseFloat(e.target.value) || 0 })}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-blue-500"
+              />
+            </div>
           </div>
 
-          <div className="text-right flex flex-col items-start md:items-end">
-            <div className="text-2xl font-bold text-white">$147<span className="text-xs font-normal text-slate-400"> /month</span></div>
-            <div className="text-xs text-emerald-400 font-medium mt-0.5">Includes 14-day free trial</div>
-          </div>
-        </div>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1">Service Radius & Locations</label>
+              <input
+                type="text"
+                value={settings.service_radius}
+                onChange={(e) => setSettings({ ...settings, service_radius: e.target.value })}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-blue-500"
+              />
+            </div>
 
-        <div className="border-t border-slate-800/80 mt-6 pt-6 flex items-center justify-between flex-wrap gap-4 relative z-10">
-          <div className="flex items-center gap-3 text-xs text-slate-300">
-            <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-            Active Voice Pipeline Ready
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1">Services Offered (Comma separated)</label>
+              <input
+                type="text"
+                value={settings.services_offered}
+                onChange={(e) => setSettings({ ...settings, services_offered: e.target.value })}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1">Operating Hours</label>
+              <input
+                type="text"
+                value={settings.operating_hours}
+                onChange={(e) => setSettings({ ...settings, operating_hours: e.target.value })}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1">AI Assistant Behavior & Instructions</label>
+              <textarea
+                rows={4}
+                value={settings.custom_prompt_instructions}
+                onChange={(e) => setSettings({ ...settings, custom_prompt_instructions: e.target.value })}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-blue-500 resize-none"
+              />
+            </div>
           </div>
 
-          <button
-            onClick={handleUpgrade}
-            disabled={loading}
-            className="bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-medium px-6 py-2.5 rounded-xl text-sm transition-all shadow-lg shadow-blue-600/25 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
-          >
-            {loading ? 'Processing...' : 'Launch 14-Day Free Trial'}
-          </button>
-        </div>
-      </div>
+          <div className="flex items-center justify-between pt-4 border-t border-slate-800">
+            <span className="text-xs text-emerald-400 font-medium">
+              {success ? '✅ Settings updated successfully!' : ''}
+            </span>
+            <button
+              type="submit"
+              disabled={saving}
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm rounded-xl shadow-lg transition-all disabled:opacity-50"
+            >
+              {saving ? 'Saving...' : 'Save Business Settings'}
+            </button>
+          </div>
+        </form>
+      )}
     </div>
   );
 }
