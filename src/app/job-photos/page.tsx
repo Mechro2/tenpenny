@@ -37,9 +37,8 @@ export default function JobPhotosPage() {
     setUploading(true);
 
     try {
-      // 1. Upload file to Supabase Storage bucket 'job-photos'
       const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random().toString(36.substring(2)}_${Date.now()}.${fileExt}`;
+      const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
       const filePath = `${fileName}`;
 
       const { error: uploadError } = await supabase.storage
@@ -48,14 +47,12 @@ export default function JobPhotosPage() {
 
       if (uploadError) throw uploadError;
 
-      // 2. Get Public URL for the image
       const { data: publicUrlData } = supabase.storage
         .from('job-photos')
         .getPublicUrl(filePath);
 
       const imageUrl = publicUrlData.publicUrl;
 
-      // 3. Insert record into `job_photos` table
       const { error: dbError } = await supabase.from('job_photos').insert([
         {
           contractor_id: 1,
@@ -67,7 +64,6 @@ export default function JobPhotosPage() {
 
       if (dbError) throw dbError;
 
-      // Reset form & reload gallery
       setClientName('');
       setCaption('');
       setFile(null);
@@ -90,7 +86,6 @@ export default function JobPhotosPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-        {/* Upload Form Card */}
         <form onSubmit={handleUpload} className="bg-slate-900/90 rounded-2xl border border-slate-800 p-6 space-y-4 shadow-xl lg:col-span-1">
           <h2 className="text-lg font-semibold text-white border-b border-slate-800 pb-3">
             📸 Upload New Photo
@@ -139,7 +134,6 @@ export default function JobPhotosPage() {
           </div>
         </form>
 
-        {/* Gallery Grid */}
         <div className="lg:col-span-2 space-y-4">
           <h2 className="text-lg font-semibold text-white flex items-center justify-between">
             <span>🖼️ Project Photo Archive</span>
